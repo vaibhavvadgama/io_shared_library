@@ -1,0 +1,68 @@
+name: Publish Python Package to Google Artifact Registry
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      PYPI_REPO_NAME: ${{ vars.PYPI_REPO_NAME }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Build the package
+        run: poetry build
+
+      - name: Decode GCP service account key
+        run: echo "${{ secrets.GCP_SA_KEY }}" | base64 -d > "${HOME}/gcp-key.json"
+
+      - name: Authenticate with Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Generate Artifact Registry access token
+        id: get_token
+        run: |
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
+          echo "token=$ACCESS_TOKEN" >> $GITHUB_OUTPUT
+
+      - name: Configure .pypirc for Artifact Registry
+        run: |
+          cat > ~/.pypirc <<EOF
+          [distutils]
+          index-servers =
+              artifact-registry
+
+          [artifact-registry]
+          repository: https://${GCP_REGION}-python.pkg.dev/${GCP_PROJECT_ID}/${PYPI_REPO_NAME}/
+          username: oauth2accesstoken
+          password: ${{ steps.get_token.outputs.token }}
+          EOF
+
+      - name: Publish to Artifact Registry
+        run: poetry publish -r artifact-registry --build
