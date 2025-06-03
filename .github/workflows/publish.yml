@@ -81,9 +81,9 @@ jobs:
           cat > ~/.pypirc <<EOF
           [distutils]
           index-servers =
-              artifact-registry
+              ${{ env.PYPI_REPO_NAME }}
 
-          [artifact-registry]
+          [${{ env.PYPI_REPO_NAME }}]
           repository: https://${{ env.GCP_REGION }}-python.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.PYPI_REPO_NAME }}/
           username: oauth2accesstoken
           password: ${{ steps.get_token.outputs.token }}
@@ -93,4 +93,4 @@ jobs:
         run: poetry build
 
       - name: Publish to Artifact Registry
-        run: poetry publish -r artifact-registry
+        run: poetry publish -r ${{ env.PYPI_REPO_NAME }}
