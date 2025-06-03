@@ -53,18 +53,10 @@ jobs:
           ACCESS_TOKEN=$(gcloud auth print-access-token)
           echo "token=$ACCESS_TOKEN" >> $GITHUB_OUTPUT
 
-      - name: Configure .pypirc for Artifact Registry
+      - name: Configure Poetry for Artifact Registry
         run: |
-          cat > ~/.pypirc <<EOF
-          [distutils]
-          index-servers =
-              artifact-registry
-
-          [artifact-registry]
-          repository: https://${{ vars.GCP_REGION }}-python.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.PYPI_REPO_NAME }}/
-          username: oauth2accesstoken
-          password: ${{ steps.get_token.outputs.token }}
-          EOF
+          poetry config repositories.artifact-registry https://${{ vars.GCP_REGION }}-python.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.PYPI_REPO_NAME }}/
+          poetry config http-basic.artifact-registry oauth2accesstoken ${{ steps.get_token.outputs.token }}
 
       - name: Publish to Artifact Registry
         run: poetry publish -r artifact-registry
