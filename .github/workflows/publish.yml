@@ -17,12 +17,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: ${{ vars.PYTHON_VERSION }}
 
       - name: Install Poetry
         run: |
@@ -32,22 +32,19 @@ jobs:
       - name: Install dependencies
         run: poetry install
 
-      - name: Clean old build artifacts
-        run: rm -rf dist/*
-
-      - name: Get current package version
-        id: get_version
-        run: echo "version=$(poetry version -s)" >> $GITHUB_OUTPUT
+      - name: Build the package
+        run: poetry build
 
       - name: Decode GCP service account key
         run: echo "${{ secrets.GCP_SA_KEY }}" | base64 -d > "${HOME}/gcp-key.json"
 
       - name: Authenticate with Google Cloud
-        uses: google-github-actions/auth@v1
+        uses: google-github-actions/auth@v2
         with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
           credentials_json: '${{ secrets.GCP_SA_KEY }}'
 
-      - name: Set up gcloud CLI
+      - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v1
 
       - name: Generate Artifact Registry access token
@@ -64,25 +61,10 @@ jobs:
               artifact-registry
 
           [artifact-registry]
-          repository: https://${GCP_REGION}-python.pkg.dev/${GCP_PROJECT_ID}/${PYPI_REPO_NAME}/
+          repository: https://${{ vars.GCP_REGION }}-python.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.PYPI_REPO_NAME }}/
           username: oauth2accesstoken
           password: ${{ steps.get_token.outputs.token }}
           EOF
 
-      - name: Check if version already exists in GAR
-        id: check_version
-        run: |
-          PACKAGE_NAME=$(poetry version | awk '{print $1}')
-          VERSION="${{ steps.get_version.outputs.version }}"
-          URL="https://${GCP_REGION}-python.pkg.dev/${GCP_PROJECT_ID}/${PYPI_REPO_NAME}/simple/${PACKAGE_NAME}/"
-          echo "Checking $URL for version $VERSION"
-          EXISTS=$(curl -sSf "$URL" | grep -q "$PACKAGE_NAME-$VERSION" && echo true || echo false)
-          echo "exists=$EXISTS" >> $GITHUB_OUTPUT
-
-      - name: Build the package
-        if: steps.check_version.outputs.exists == 'false'
-        run: poetry build
-
       - name: Publish to Artifact Registry
-        if: steps.check_version.outputs.exists == 'false'
-        run: poetry publish -r artifact-registry
+        run: poetry publish -r artifact-registry --build
