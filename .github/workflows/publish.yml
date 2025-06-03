@@ -67,4 +67,4 @@ jobs:
           EOF
 
       - name: Publish to Artifact Registry
-        run: poetry publish -r artifact-registry --build
+        run: poetry publish -r artifact-registry
