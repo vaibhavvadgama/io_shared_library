@@ -1,6 +1,6 @@
 from google.cloud import bigquery
 import pandas as pd
-from config import settings
+from io_shared_library.config import settings
 
 def write_to_bigquery(df: pd.DataFrame, table_id: str, if_exists: str = "replace"):
     client = bigquery.Client(project=settings.PROJECT_ID)
